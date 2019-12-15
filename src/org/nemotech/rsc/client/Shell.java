@@ -62,8 +62,8 @@ public abstract class Shell extends Panel implements Runnable, MouseListener, Mo
     
     protected void doResize(int width, int height) {
         synchronized(dimension) {
-            dimension.width = width;
-            dimension.height = height;
+            dimension.width = width-20;
+            dimension.height = height-36;
             resized = false;
         }
     }
@@ -247,10 +247,12 @@ public abstract class Shell extends Panel implements Runnable, MouseListener, Mo
         closing = true;
         stopTimeout = -2;
         System.out.println("\nSaving player data and closing application...");
+        if (musicPlayer != null ){
         if(musicPlayer.isRunning()) {
             musicPlayer.stop();
         }
         musicPlayer.close();
+        }
         if(application != null) {
             application.dispose();
         }
