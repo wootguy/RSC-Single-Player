@@ -53,13 +53,13 @@ public class Application extends Frame {
     @Override
     public Graphics getGraphics() {
         Graphics graphics = super.getGraphics();
-        graphics.translate(0, 22);
+        graphics.translate(10, 38);
         return graphics;
     }
 
     @Override
     public void setSize(int x, int y) {
-        super.setSize(x, y + 32);
+        super.setSize(x, y);
     }
 
     @Override
@@ -67,10 +67,10 @@ public class Application extends Frame {
         if (e instanceof MouseEvent) {
             if(e instanceof MouseWheelEvent) {
                 MouseWheelEvent evt = (MouseWheelEvent) e;
-                e = new MouseWheelEvent(evt.getComponent(), evt.getID(), evt.getWhen(), evt.getModifiers(), evt.getX(), evt.getY() - 24, evt.getClickCount(), evt.isPopupTrigger(), evt.getScrollType(), evt.getScrollAmount(), evt.getWheelRotation());
+                e = new MouseWheelEvent(evt.getComponent(), evt.getID(), evt.getWhen(), evt.getModifiers(), evt.getX()-10, evt.getY() - 38, evt.getClickCount(), evt.isPopupTrigger(), evt.getScrollType(), evt.getScrollAmount(), evt.getWheelRotation());
             } else {
                 MouseEvent evt = (MouseEvent) e;
-                e = new MouseEvent(evt.getComponent(), evt.getID(), evt.getWhen(), evt.getModifiers(), evt.getX(), evt.getY() - 24, evt.getClickCount(), evt.isPopupTrigger());
+                e = new MouseEvent(evt.getComponent(), evt.getID(), evt.getWhen(), evt.getModifiers(), evt.getX()-10, evt.getY() - 38, evt.getClickCount(), evt.isPopupTrigger());
             }
         }
         super.processEvent(e);
