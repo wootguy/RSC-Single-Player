@@ -6,3 +6,10 @@ build.xml
 manifest.mf
 README.md
 LICENSE
+/.metadata
+/bin/org/nemotech/rsc
+/*.smd
+/*.bmp
+/compiled
+/smd
+/tex

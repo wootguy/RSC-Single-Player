@@ -229,6 +229,12 @@ public class Admin extends Plugin implements CommandListener {
             return;
         }
         
+        if(command.equals("sleep")) {
+        	player.setFatigue(0);
+        	player.getSender().sendFatigue(0);
+            player.getSender().sendMessage("You have received 5 random wearable items");
+        }
+        
         if(command.equals("stuff")) {
             int count = 0;
             for(;;) {
