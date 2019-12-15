@@ -86,7 +86,7 @@ public class Terrain {
             }
             else {
                 ByteBuffer data = Util.streamToBuffer(new BufferedInputStream(tileArchive.getInputStream(e)));
-                s = Sector.unpack(data);
+                s = Sector.unpack(data, -1, -1, -1);
             }
         } catch(IOException e) {
             System.exit(1);

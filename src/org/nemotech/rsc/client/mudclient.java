@@ -11,14 +11,23 @@ import org.nemotech.rsc.client.sound.SoundEffect;
 import org.nemotech.rsc.client.sound.MusicPlayer;
 import org.nemotech.rsc.model.player.Player;
 
+import com.sun.javafx.geom.Vec2f;
+import com.sun.javafx.geom.Vec3f;
+
 import java.awt.*;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;
+import java.awt.image.BufferedImage;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+
+import javax.imageio.ImageIO;
 
 public class mudclient extends Shell {
     
@@ -2243,6 +2252,8 @@ public class mudclient extends Shell {
                 }
                 if (i2 != 5 || EntityManager.getAnimation(k3).hasA()) {
                     int l4 = k4 + EntityManager.getAnimation(k3).getNumber();
+                    if (surface.spriteWidthFull[l4] == 0)
+                    	break;
                     i4 = (i4 * w) / surface.spriteWidthFull[l4];
                     j4 = (j4 * h) / surface.spriteHeightFull[l4];
                     int i5 = (w * surface.spriteWidthFull[l4]) / surface.spriteWidthFull[EntityManager.getAnimation(k3).getNumber()];
@@ -3989,6 +4000,7 @@ public class mudclient extends Shell {
                 int k = Util.getDataFileOffset(EntityManager.getModelName(j) + ".ob3", data);
                 if (k != 0) {
                     gameModels[j] = new Model(data, k, true);
+                    dumpModel(gameModels[j], EntityManager.getModelName(j));
                 } else {
                     gameModels[j] = new Model(1, 1);
                 }
@@ -3997,6 +4009,291 @@ public class mudclient extends Shell {
                 }
             }
         }
+    }
+    
+    private final static String SMD_HEADER = "version 1\n" +
+			"nodes\n" +
+			"0 \"root\" -1\n" +
+			"end\n" +
+			"skeleton\n" +
+			"time 0\n" +
+			"0 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000\n" +
+			"end\n" +
+			"triangles\n";
+    
+    private static final float WORLD_SCALE = 0.5f;
+    private static final Vec3 WORLD_OFFSET = new Vec3(0,0,0);
+    
+    static class Vertex {
+    	float x, y, z;
+		float nx, ny, nz;
+		float u, v;
+		
+		Vertex(float x, float y, float z) {			
+			// convert coordinate system and shift into sector offset (or world origin if smd mode)
+			this.x = x;
+        	this.y = y;
+        	this.z = z;
+		}
+		
+		Vertex(Vec3f pos, Vec3f normal, Vec2f uv) {
+			this.u = uv.x;
+			this.v = uv.y;
+			
+			this.x = pos.x;
+        	this.y = pos.y;
+        	this.z = pos.z;
+        	
+        	this.nx = normal.x;
+        	this.ny = normal.y;
+        	this.nz = normal.z;
+		}
+		
+		Vertex(Vertex other) {
+			x = other.x;
+			y = other.y;
+			z = other.z;
+			nx = other.nx;
+			ny = other.ny;
+			nz = other.nz;
+			u = other.u;
+			v = other.v;
+		}
+		
+		Vec3 getPos() {
+			return new Vec3(x, y, z);
+		}
+		
+		float projectCoord(Vec3 axis) {
+			double den = (double)Math.sqrt(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
+			double num = axis.x * x + axis.y * y + axis.z * z;
+			return (float)(num / den);
+		}
+		
+		String toSmdString() {
+			return "0 " + (x*WORLD_SCALE + WORLD_OFFSET.x) + " " 
+					+ (z*WORLD_SCALE + WORLD_OFFSET.y) + " " 
+					+ (-y*WORLD_SCALE + WORLD_OFFSET.z) + " " 
+					+ nx + " " + ny + " " + nz + " " 
+					+ u + " " + v + "\n";
+		}
+    }
+    
+    static class Triangle {
+    	Vertex[] verts = new Vertex[3];
+		String texture;
+		
+		Triangle(Vertex v0, Vertex v1, Vertex v2, String texture, Vec3 axisU, Vec3 axisV) {
+			verts[0] = new Vertex(v0);
+			verts[1] = new Vertex(v1);
+			verts[2] = new Vertex(v2);
+			this.texture = texture;
+			
+			Vec3 ba = verts[1].getPos().sub(v0.getPos()).normalize();
+        	Vec3 ca = verts[2].getPos().sub(verts[0].getPos()).normalize();
+        	Vec3 normal = ba.cross(ca).normalize();
+        	for (int k = 0; k < 3; k++) {
+        		verts[k].nx = normal.x;
+        		verts[k].ny = normal.y;
+        		verts[k].nz = normal.z;
+        	}
+        	
+		}
+				
+		String toSmdString() {
+			return texture + "\n" +
+					 verts[0].toSmdString() +
+					 verts[1].toSmdString() +
+					 verts[2].toSmdString();
+		}
+    }
+    
+    static class Vec3 {
+    	float x, y, z;
+    	
+    	Vec3() {
+    		this.x = 0;
+    		this.y = 0;
+    		this.z = 0;
+    	}
+    	
+    	Vec3(float x, float y, float z) {
+    		this.x = x;
+    		this.y = y;
+    		this.z = z;
+    	}
+    	
+    	Vec3 sub(Vec3 other) {
+    		Vec3 out = new Vec3();
+    		
+    		out.x = x - other.x;
+    		out.y = y - other.y;
+    		out.z = z - other.z;
+    		
+    		return out;
+    	}
+    	
+    	Vec3 normalize() {
+    		float d = 1.0f / (float)Math.sqrt( (x*x) + (y*y) + (z*z) );
+    		return new Vec3(x*d, y*d, z*d);
+    	}
+    	
+    	Vec3 cross(Vec3 other) {
+			Vec3 out = new Vec3();
+			    		
+			out.x = y*other.z - other.y*z; 
+			out.y = other.x*z - x*other.z; 
+			out.z = x*other.y - y*other.x;
+    		
+    		return out;
+    	}
+    	
+    	public String toString() {
+    		return "(" + x + " " + y + " " + z + ")";
+    	}
+    }
+    
+    public static int rscColorToRgbColor(int c) {
+    	c = -1 - c;
+    	
+    	int r = (c >> 10) * 8;
+    	int g = ((c >> 5) & 31) * 8;
+    	int b = (c & 31) * 8;
+    	
+    	return (r << 16) + (g << 8) + b;
+    }
+    
+    private void writeSolidColorTexture(String bmp_name, int color) throws IOException {
+		if (Files.notExists(new File(bmp_name).toPath())) {
+			int textureSize = 1;
+			BufferedImage theImage = new BufferedImage(textureSize, textureSize, BufferedImage.TYPE_INT_RGB);
+			
+	        for (int y = 0; y < textureSize; y++) {
+	            for (int x = 0; x < textureSize; x++) {
+	                theImage.setRGB(y, (textureSize-1)-x, color);
+	            }
+	        }
+			
+            ImageIO.write(theImage, "BMP", new File(bmp_name));
+		}
+	}
+    
+    private void dumpModel(Model model, String name) {
+    	if (!name.contains("tree") || true)
+    		return;
+    	
+    	System.out.println("Dumping model " + name);
+		try {
+			//model.unlit = false;
+			//model.light();
+			String smd_path = name + ".smd";
+			FileWriter smd = new FileWriter(smd_path);
+			smd.write(SMD_HEADER);
+		
+			for (int i = 0; i < model.numFaces; i++) {
+				int fill = model.faceFillFront[i];
+				if (fill == 12345678) {
+					fill = model.faceFillBack[i];
+				}
+				
+				String bmp_name = "color_" + fill + ".bmp";
+				if (fill >= 0) {
+					bmp_name = "tex_" + fill + ".bmp";
+				} else {
+					fill = rscColorToRgbColor(fill);
+					bmp_name = "color_" + fill + ".bmp";
+					writeSolidColorTexture(bmp_name, fill);
+				}
+				
+				int iv0 = model.faceVertices[i][0];
+				int iv1 = model.faceVertices[i][1];
+				int iv2 = model.faceVertices[i][model.faceNumVertices[i] == 4 ? 3 : 2];
+				Vec3 v0 = new Vec3(model.vertexX[iv0], model.vertexY[iv0], model.vertexZ[iv0]);
+				Vec3 v1 = new Vec3(model.vertexX[iv1], model.vertexY[iv1], model.vertexZ[iv1]);
+				Vec3 v2 = new Vec3(model.vertexX[iv2], model.vertexY[iv2], model.vertexZ[iv2]);
+				
+				Vec3 ab = v1.sub(v0).normalize();
+	        	Vec3 ac = v2.sub(v0).normalize();
+	        	Vec3 normal = ac.cross(ab).normalize();
+	        	//System.out.println(ab + " CROSS " + ac + " EQUAL " + normal);
+	        	
+	        	//Vec3 axisU = normal.cross(new Vec3(0,1,0)).normalize();
+	        	//Vec3 axisV = normal.cross(axisU).normalize();
+	        	
+	        	Vec3 axisU = ab;
+	        	Vec3 axisV = ac;
+	        	axisV = ab.cross(normal);
+	        	
+	        	Vertex uu = new Vertex(v0.x, v0.y, v0.z);
+				uu.x += axisU.x*20;
+				uu.y += axisU.y*20;
+				uu.z += axisU.z*20;
+				Vertex vv = new Vertex(v0.x, v0.y, v0.z);
+				vv.x += axisV.x*20;
+				vv.y += axisV.y*20;
+				vv.z += axisV.z*20;
+				Triangle asdf = new Triangle(new Vertex(v0.x, v0.y, v0.z), uu, vv, bmp_name, axisU, axisV);
+				//smd.write(asdf.toSmdString());
+	        	
+	        	float mostU = -9999999;
+	        	float mostV = -9999999;
+	        	float leastU = 999999;
+	        	float leastV = 999999;
+	        	int mostIdx = -1;
+	        	for (int k = 0; k < model.faceNumVertices[i]; k++) {
+	        		int iv = model.faceVertices[i][k];
+					Vertex vert = new Vertex(model.vertexX[iv], model.vertexY[iv], model.vertexZ[iv]);
+					float u = vert.projectCoord(axisU);
+					float v = vert.projectCoord(axisV);
+					if (u > mostU) {
+						mostU = u;
+						mostIdx = k;
+					}
+					if (v > mostV) {
+						mostV = v;
+						mostIdx = k;
+					}
+					if (u < leastU) leastU = u;
+	        		if (v < leastV) leastV = v;
+	        	}
+	        	float uRange = Math.abs(mostU - leastU);
+	        	float vRange = Math.abs(mostV - leastV);
+				
+				int[] order0 = {2, 1, 0};
+				Vertex[] t0 = new Vertex[3];
+				for (int k = 0; k < 3; k++) {
+					int iv = model.faceVertices[i][order0[k]];
+					t0[k] = new Vertex(model.vertexX[iv], model.vertexY[iv], model.vertexZ[iv]);
+					t0[k].u = (t0[k].projectCoord(axisU) - leastU) / uRange;
+					t0[k].v = (t0[k].projectCoord(axisV) - leastV) / vRange;
+				}
+				Triangle tri0 = new Triangle(t0[0], t0[1], t0[2], bmp_name, axisU, axisV);
+				smd.write(tri0.toSmdString());
+				
+				if (model.faceNumVertices[i] == 4) {
+					int[] order1 = {3, 2, 0};
+					Vertex[] t1 = new Vertex[3];
+					for (int k = 0; k < 3; k++) {
+						int iv = model.faceVertices[i][order1[k]];
+						t1[k] = new Vertex(model.vertexX[iv], model.vertexY[iv], model.vertexZ[iv]);
+						t1[k].u = (t1[k].projectCoord(axisU) - leastU) / uRange;
+						t1[k].v = (t1[k].projectCoord(axisV) - leastV) / vRange;
+					}
+					Triangle tri1 = new Triangle(t1[0], t1[1], t1[2], bmp_name, axisU, axisV);
+					smd.write(tri1.toSmdString());
+				}
+				
+				if (model.faceNumVertices[i] > 4) {
+					System.out.println("ZOMG NOT A NORMAL FACE " + model.faceNumVertices[i]);
+					continue;
+				}
+	        }
+			
+			smd.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
 
     private void drawDialogServerMessage() {
@@ -4303,11 +4600,34 @@ public class mudclient extends Shell {
             }
             surface.drawSpriteClipping(spriteTextureWorld + i, 0, 0, wh, wh);
             int area = wh * wh;
-            for (int j = 0; j < area; j++) {
-                if (surface.surfacePixels[spriteTextureWorld + i][j] == 65280) {
-                    surface.surfacePixels[spriteTextureWorld + i][j] = 0xff00ff;
+            if (false) {
+            	for (int j = 0; j < wh; j++) {
+                    for (int z = 0; z < wh; z++) {
+                    	if (j <= 2 || z <= 2 || j >= wh-3 || z >= wh-3 || z % 8 == 0 || j % 8 == 0) {
+                    		surface.surfacePixels[spriteTextureWorld + i][j*wh + z] = 0xffffff;
+                    	}
+                    	else if (j < wh/2 && z < wh/2) {
+                    		surface.surfacePixels[spriteTextureWorld + i][j*wh + z] = 0x00ff00;
+                    	} else if (j < wh/2 && z >= wh/2) {
+                    		surface.surfacePixels[spriteTextureWorld + i][j*wh + z] = 0x0000ff;
+                    	}
+                    	else if (j >= wh/2 && z < wh/2) {
+                    		surface.surfacePixels[spriteTextureWorld + i][j*wh + z] = 0xffff00;
+                    	}
+                    	else {
+                    		surface.surfacePixels[spriteTextureWorld + i][j*wh + z] = 0xff0000;
+                    	}
+                    }
                 }
             }
+            else {
+            	for (int j = 0; j < area; j++) {
+                    if (surface.surfacePixels[spriteTextureWorld + i][j] == 65280) {
+                        surface.surfacePixels[spriteTextureWorld + i][j] = 0xff00ff;
+                    }
+                }
+            }
+            
             surface.drawWorld(spriteTextureWorld + i);
             scene.defineTexture(i, surface.spriteColoursUsed[spriteTextureWorld + i], surface.spriteColourList[spriteTextureWorld + i], wh / 64 - 1);
         }

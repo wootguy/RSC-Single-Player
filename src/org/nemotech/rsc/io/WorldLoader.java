@@ -33,7 +33,7 @@ public class WorldLoader {
                 return;
             }
             ByteBuffer data = Util.streamToBuffer(new BufferedInputStream(tileArchive.getInputStream(e)));
-            s = Sector.unpack(data);
+            s = Sector.unpack(data, sectionX, sectionY, height);
         } catch (Exception e) {
             e.printStackTrace();
         }
